@@ -1,0 +1,5 @@
+__pycache__/
+.idea
+
+# scraper data output
+scrapers/*.json
