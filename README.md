@@ -60,6 +60,64 @@ requiring much custom code?
 
 ## Technical notes
 
+### Porting existing Open States scrapers
+
+We have a repository of existing open data scrapers in [openstates-scrapers](https://github.com/openstates/openstates-scrapers).
+These form the baseline of quality and expected output for scrapers in this test repository. 
+
+Those scrapers rely on some shared code from a PyPi package called `openstates`, the code for which [is found here](https://github.com/openstates/openstates-core).
+There is currently a barrier to adding that shared code to this repo (see Problems below), so some of that shared code
+is temporarily copied into this repo.
+
+Some technical notes regarding porting code:
+
+* All the scrapers in the `scrapers_next` folder use the [spatula](https://github.com/jamesturk/spatula) scraper
+  framework. A few of the ones in the `scrapers` folder do as well (see `nv/bills.py`). But most of the scrapers in the
+  `scrapers` folder use an older framework called [scrapelib](https://github.com/jamesturk/scrapelib).
+* There are often multiple requests needed to compile enough data to fully represent a Bill, so these sequences of
+  requests and parsing can end up looking like long procedures (scrapelib) or nested abstractions where it's not clear
+  how they are tied together (spatula). In scrapy, we should handle this by yielding Requests that pass along the
+  partial entity using `cb_kwargs`.
+    * In spatula, you'll see a pattern where subsequent parsing functions access `self.input` to access that partial
+      data. In scrapy, passed-down partial data is available as a named kwarg, such as `bill` or `bill_stub`.
+* Fundamentally, the CSS and Xpath selectors remain the same, just some of the syntax around them changes:
+    * `doc.xpath()` or `self.root.xpath()` becomes `response.xpath()`
+    * `CSS("#title").match_one(self.root).text` becomes ` response.css("#title::text").get()`
+
+#### Evaluating whether the port is a success
+
+The scrapy-based scrapers need to perform at least as well as the equivalent scraper in that repo.
+
+The most important expectation to meet is that the new scraper must be at least as information-complete and accurate as
+the old scraper. Is the output the same (or better)?
+
+Old Open States scrapers will output a JSON file for each scraped item to a local directory: `./_data`:
+
+```shell
+jesse@greenbookwork:~/repo/openstates/openstates-scrapers/scrapers/_data$ cd nv
+jesse@greenbookwork:~/repo/openstates/openstates-scrapers/scrapers/_data/nv$ ls -alh
+total 56K
+drwxrwxr-x 2 jesse jesse 4.0K Nov  6 18:29 .
+drwxrwxr-x 6 jesse jesse 4.0K Nov  5 19:36 ..
+-rw-rw-r-- 1 jesse jesse 2.1K Nov  6 18:28 bill_9f6f717c-7d04-11ee-aeef-01ae5adc5576.json
+-rw-rw-r-- 1 jesse jesse 2.1K Nov  6 18:28 bill_a2526bec-7d04-11ee-aeef-01ae5adc5576.json
+-rw-rw-r-- 1 jesse jesse  13K Nov  6 18:29 bill_a54dad84-7d04-11ee-aeef-01ae5adc5576.json
+-rw-rw-r-- 1 jesse jesse 1.9K Nov  6 18:29 bill_a8d58f30-7d04-11ee-aeef-01ae5adc5576.json
+-rw-rw-r-- 1 jesse jesse 2.1K Nov  6 18:29 bill_abc9288c-7d04-11ee-aeef-01ae5adc5576.json
+-rw-rw-r-- 1 jesse jesse 3.8K Nov  6 18:28 jurisdiction_ocd-jurisdiction-country:us-state:nv-government.json
+-rw-rw-r-- 1 jesse jesse  171 Nov  6 18:28 organization_9dac2f10-7d04-11ee-aeef-01ae5adc5576.json
+-rw-rw-r-- 1 jesse jesse  187 Nov  6 18:28 organization_9dac2f11-7d04-11ee-aeef-01ae5adc5576.json
+-rw-rw-r-- 1 jesse jesse  189 Nov  6 18:28 organization_9dac2f12-7d04-11ee-aeef-01ae5adc5576.json
+```
+
+The above output was created by running the following command from within the `scrapers` subdirectory:
+
+`poetry run python -m openstates.cli.update --scrape nv bills session=2023Special35`
+
+(Nevada session `2023Special35` is a nice example because it is quick: only 5 bills.)
+
+We can compare this output to the `nv-bills.json` output mentioned above.
+
 ### Problems
 
 * The `spatula` library specifies an older version of the `attrs` package as a dependency. `scrapy` also has `attrs` as
