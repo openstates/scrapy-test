@@ -95,6 +95,7 @@ The scrapy-based scrapers need to perform at least as well as the equivalent scr
 
 The most important expectation to meet is that the new scraper must be at least as information-complete and accurate as
 the old scraper. Is the output the same (or better)?
+See [documentation on Open States scrapers](https://docs.openstates.org/contributing/scrapers/).
 
 Old Open States scrapers will output a JSON file for each scraped item to a local directory: `./_data`:
 
@@ -122,6 +123,17 @@ The above output was created by running the following command from within the `s
 (Nevada session `2023Special35` is a nice example because it is quick: only 5 bills.)
 
 We can compare this output to the `nv-bills.json` output mentioned above.
+
+Other evaluation criteria:
+
+* A scraper for bills should accept a `session` argument that accepts a legislative session identifier (string).
+  [See example](https://github.com/openstates/scrapy-test/blob/30dc3188429ecb015c1144dc16466afd4032bd63/scrapers/scrapers/spiders/nv-bills.py#L92).
+* Comments that provide context for otherwise-opaque HTML selectors/traversal are helpful!
+* Long procedures should be broken into reasonable-sized functions. Often it makes sense to have a separate function for
+  handling sub-entities, eg `add_actions()`, `add_sponsors()`, `add_versions()` etc..
+* `Request`s that are required to get the `BillStub` level of info should have `"is_scout": True` set in the `meta` arg.
+  This allows us to run the scraper in "scout" mode: only running the minimum requests needed for basic info so we can
+  frequently assess when new entities are posted (and avoid flodding the source with requests).
 
 ### Problems
 
