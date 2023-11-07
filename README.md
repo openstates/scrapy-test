@@ -10,8 +10,10 @@ Proof of Concept for using Scrapy to write and execute scrapers that obtain open
 
 You should now have the `scrapy` tool installed in your poetry environment.
 
-**Warning**: currently something is wrong with the project structure. I can only run this with a modification to
-PYTHONPATH (which PyCharm adds by default). How to set PYTHONPATH if you want to just run this in a terminal:
+**Warning**: currently something is wrong with the project structure, trying to import from the `core` package from
+a scraper a couple layers deep in the `scrapers` package. I can only run this with a modification to
+PYTHONPATH (which PyCharm adds by default, running in PyCharm is fine). How to set PYTHONPATH if you want to just run
+this in a terminal:
 
 * Find the path to your Poetry environment folder: `poetry env info`
 * Set PYTHONPATH to include both the root folder of this repo and the `site-packages` folder of the poetry env:
@@ -38,7 +40,8 @@ PYTHONPATH (which PyCharm adds by default). How to set PYTHONPATH if you want to
 
 ### Prior art
 
-John did a scrapy PoC in the (private) [Plural Engineering Experiments repo](https://github.com/civic-eagle/data-engineering-experiements/tree/main/scrapy-test)
+John did a scrapy PoC in the (
+private) [Plural Engineering Experiments repo](https://github.com/civic-eagle/data-engineering-experiements/tree/main/scrapy-test)
 
 ### Why Scrapy?
 
@@ -62,10 +65,12 @@ requiring much custom code?
 
 ### Porting existing Open States scrapers
 
-We have a repository of existing open data scrapers in [openstates-scrapers](https://github.com/openstates/openstates-scrapers).
-These form the baseline of quality and expected output for scrapers in this test repository. 
+We have a repository of existing open data scrapers
+in [openstates-scrapers](https://github.com/openstates/openstates-scrapers).
+These form the baseline of quality and expected output for scrapers in this test repository.
 
-Those scrapers rely on some shared code from a PyPi package called `openstates`, the code for which [is found here](https://github.com/openstates/openstates-core).
+Those scrapers rely on some shared code from a PyPi package called `openstates`, the code for
+which [is found here](https://github.com/openstates/openstates-core).
 There is currently a barrier to adding that shared code to this repo (see Problems below), so some of that shared code
 is temporarily copied into this repo.
 
@@ -125,7 +130,6 @@ We can compare this output to the `nv-bills.json` output mentioned above.
   add `openstates` as a dependency to this project! To try to quickly work around this, I copied a bunch of library code
   out of the `openstates-core` repo and into the `core` package within this repo. This is a very temporary solution.
 * Scraper is not fully ported
-
 
 ### Useful concepts
 
