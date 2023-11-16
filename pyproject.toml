@@ -11,6 +11,7 @@ scrapy = "^2.11.0"
 boto3 = "^1.28.78"
 jsonschema = "^4.19.2"
 scrapelib = "^2.2.0"
+deepdiff = "^6.7.1"
 
 
 [build-system]
