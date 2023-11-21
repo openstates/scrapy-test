@@ -6,6 +6,7 @@ class Chamber(str, Enum):
     UPPER = "upper"
     LOWER = "lower"
     LEGISLATURE = "legislature"
+    EXECUTIVE = "executive"
 
 
 @dataclass
