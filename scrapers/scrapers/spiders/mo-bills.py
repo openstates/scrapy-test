@@ -130,7 +130,6 @@ class BillsSpider(Spider):
     def __init__(self, session=None, chamber=None, **kwargs):
         self.session = session
         self.chamber = chamber
-
         super().__init__(**kwargs)
 
     def start_requests(self):
@@ -219,7 +218,7 @@ class BillsSpider(Spider):
 
         if bid in self.subjects:
             subs = self.subjects[bid]
-            self.info("With subjects for this bill")
+            self.logger.info("With subjects for this bill")
 
         if bill_desc == "":
             if bill_number <= 20:
@@ -607,13 +606,15 @@ class BillsSpider(Spider):
         else:
             raise UnrecognizedSessionType(session)
 
+    # scrape subjects
     def parse_subjects(self, session):
         self.parse_senate_subjects(session)
-        # if "S" in session:
-        #     self.logger.warning("skipping house subjects for special session")
-        # else:
-        #     self.parse_house_subjects(session)
+        if "S" in session:
+            self.logger.warning("skipping house subjects for special session")
+        else:
+            self.parse_house_subjects(session)
 
+    # scrape senate subjects
     def parse_senate_subjects(self, session):
         self.logger.info("Collecting subject tags from senate.")
 
@@ -623,7 +624,6 @@ class BillsSpider(Spider):
                 session[2:4], self.session_type(session)
             )
         )
-        print(subject_list_url)
         subject_page = lxmlize(subject_list_url)
 
         # Create a list of all possible bill subjects.
@@ -639,4 +639,40 @@ class BillsSpider(Spider):
                 "./following-sibling::span[1]/a[contains(@href, 'BillID')]/text()[normalize-space()]").getall()
 
             for bill_id in bill_ids:
+                self.subjects[bill_id].append(subject_text)
+
+    # scrape house subjects
+    def parse_house_subjects(self, session):
+        self.logger.info("Collecting subject tags from lower house.")
+
+        subject_list_url = "http://house.mo.gov/LegislationSP.aspx?code=R&category=subjectindex&year={}".format(
+            session
+        )
+        subject_page = lxmlize(subject_list_url)
+
+        # Create a list of all the possible bill subjects.
+        subjects = subject_page.xpath(
+            '//div[@id="ExpandedPanel3"]/div[@class="panelCell"]/a',
+        )
+
+        # Find the list of bills within each subject.
+        for subject in subjects:
+            subject_text = subject.xpath('@id').get('').strip()
+            self.logger.info(f"Searching for bills in {subject_text}.")
+            subject_page = lxmlize(
+                'https://house.mo.gov/' + subject.xpath('@href').get())
+            bill_nodes = subject_page.xpath(
+                '//table[@id="reportgrid"]/tbody/tr[@class="reportbillinfo"]')
+
+            # Move onto the next subject if no bills were found.
+            if bill_nodes is None or not (len(bill_nodes) > 0):
+                continue
+
+            for bill_node in bill_nodes:
+                bill_id = bill_node.xpath(
+                    "./td[1]/a/text()[normalize-space()]").get()
+                # Skip to the next bill if no ID could be found.
+                if bill_id is None or not (len(bill_id) > 0):
+                    continue
+                self.logger.info("Found {}.".format(bill_id))
                 self.subjects[bill_id].append(subject_text)
