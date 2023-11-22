@@ -232,7 +232,8 @@ class BillsSpider(Spider):
         subject = None
         for p in dependency_response.xpath("//p"):
             if p.xpath("@class").get() == "Level0":
-                subject = p.xpath('text()').get().replace("\r\n", " ")
+                subject = ''.join(p.xpath('.//text()').getall()
+                                  ).replace("\r\n", " ")
             else:
                 if subject:
                     for a in p.xpath(".//a"):
@@ -357,7 +358,7 @@ class BillsSpider(Spider):
     def parse_bill_tab_text(self, response, bill):
         # some BDRs have no text link
         for row in response.css(".d-md-none .h5 a"):
-            title = row.xpath('text()').get().strip()
+            title = ''.join(row.xpath('.//text()').getall()).strip()
             link = response.urljoin(row.xpath("@href").get())
             bill.add_version_link(
                 title, link, media_type="application/pdf", on_duplicate="ignore"
@@ -373,8 +374,8 @@ class BillsSpider(Spider):
         )
 
     def parse_exhibit_tab_text(self, response, bill):
-        for row in response.css("li.my-4 a"):
-            title = row.xpath('text()').get().strip()
+        for row in response.css("#divExhibits li.my-4 a"):
+            title = ''.join(row.xpath('.//text()').getall()).strip()
             link = response.urljoin(row.xpath("@href").get())
             bill.add_document_link(
                 title, link, media_type="application/pdf", on_duplicate="ignore"
@@ -391,7 +392,7 @@ class BillsSpider(Spider):
 
     def parse_amendment_tab_text(self, response, bill):
         for row in response.css(".col-11.col-md a"):
-            title = row.xpath('text()').get().strip()
+            title = ''.join(row.xpath('.//text()').getall()).strip()
             link = response.urljoin(row.xpath("@href").get())
             bill.add_version_link(
                 title, link, media_type="application/pdf", on_duplicate="ignore"
@@ -408,7 +409,7 @@ class BillsSpider(Spider):
 
     def parse_fiscal_tab_text(self, response, bill):
         for row in response.css("ul.list-unstyled li a"):
-            title = row.xpath('text()').get().strip()
+            title = ''.join(row.xpath('.//text()').getall()).strip()
             title = f"Fiscal Note: {title}"
             link = response.urljoin(response.urljoin(row.xpath("@href").get()))
             bill.add_document_link(
