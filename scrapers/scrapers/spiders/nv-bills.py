@@ -215,31 +215,14 @@ class BillsSpider(Spider):
     def start_requests(self):
         # TODO default active sessions
         slug = session_slugs[self.session]
-        # subject_mapping
+        # fetch and parse subjects report to create bill:subjects mapping
         year = slug[4:]
         url = (
             f"https://www.leg.state.nv.us/Session/{slug}/Reports/"
             f"TablesAndIndex/{year}_{self.session}-index.html"
         )
-
         dependency_request = requests.get(url)
-        dependency_response = Selector(dependency_request)
-        # first, a bit about this page:
-        # Level0 are the bolded titles
-        # Level1,2,3,4 are detailed titles, contain links to bills
-        # all links under a Level0 we can consider categorized by it
-        # there are random newlines *everywhere* that should get replaced
-        subject = None
-        for p in dependency_response.xpath("//p"):
-            if p.xpath("@class").get() == "Level0":
-                subject = ''.join(p.xpath('.//text()').getall()
-                                  ).replace("\r\n", " ")
-            else:
-                if subject:
-                    for a in p.xpath(".//a"):
-                        bill_id = a.xpath('text()').get().replace(
-                            "\r\n", "") if a.xpath('text()').get() else None
-                        self.subject_mapping[bill_id].add(subject)
+        self.parse_bill_subjects_page(Selector(dependency_request))
 
         # proceed bill listing
         bill_listing_url = (f"https://www.leg.state.nv.us/App/NELIS/REL/{slug}/"
@@ -250,6 +233,27 @@ class BillsSpider(Spider):
         }
 
         yield Request(url=bill_listing_url, callback=self.parse_bill_list, meta=meta)
+
+    def parse_bill_subjects_page(self, response):
+        # first, a bit about this page:
+        # Level0 are the bolded titles
+        # Level1,2,3,4 are detailed titles, contain links to bills
+        # all links under a Level0 we can consider categorized by it
+        # there are random newlines *everywhere* that should get replaced
+        subject = None
+        for p in response.xpath("//p"):
+            if p.xpath("@class").get() == "Level0":
+                # many items include "<i>(See also ...)</i>" references that we want to exclude from the main subject
+                see_also_text = "".join(p.xpath('./i//text()').getall()).replace("\r\n", " ")
+                subject = ''.join(p.xpath('.//text()').getall()
+                                  ).replace("\r\n", " ").replace(see_also_text, "")
+            else:
+                if subject:
+                    # exclude links that are references to other subjects ie <i>(See <a>ELECTIONS</a>)</i>
+                    for a in p.xpath(".//a[not(ancestor::i)]"):
+                        bill_id = a.xpath('text()').get().replace(
+                            "\r\n", "") if a.xpath('text()').get() else None
+                        self.subject_mapping[bill_id].add(subject)
 
     def parse_bill_list(self, response):
         bill_link_elems = response.css(".row a")
