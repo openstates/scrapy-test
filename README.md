@@ -17,7 +17,7 @@ this in a terminal:
 
 * Find the path to your Poetry environment folder: `poetry env info`
 * Set PYTHONPATH to include both the root folder of this repo and the `site-packages` folder of the poetry env:
-  `export PYTHONPATH='/home/jesse/repo/openstates/scrapy-test:/home/jesse/.cache/pypoetry/virtualenvs/scrapy-test-vH1KNbGC-py3.9/lib/python3.9/site-packages`
+  `export PYTHONPATH='/home/jesse/repo/openstates/scrapy-test/scrapers:/home/jesse/.cache/pypoetry/virtualenvs/scrapy-test-vH1KNbGC-py3.9/lib/python3.9/site-packages:/home/jesse/repo/openstates/scrapy-test/'`
     * You will need to change the paths in the command above to match those on your machine.
 
 ### Run a scout scrape
@@ -35,6 +35,21 @@ this in a terminal:
   requests that are not marked `is_scout` in the `meta` property of the request.
 * Results are output to `nv-bills.json`
 * Please note that the scraper is not fully ported over yet, so there is still missing data.
+
+### Quickly examine individual items in scrapy output
+
+The CLI tool `jq` is very useful for quickly examining output, especially when you have a full scrape that is a long
+JSON file. For example, this command finds a particular Bill and outputs the `subject` property of that bill:
+
+`cat nv-bills-82-2.json | jq -c '.[] | select(.identifier | contains("AB261"))' | jq .subject`
+
+### Run scrapy shell
+
+The `scrapy shell` command is useful for interacting with a particular webpage and experimenting with selectors/parsing.
+Note that you should run this with the scout-only downloader middlware turned off or you will get silent failures to
+fetch that will be confusing:
+
+`poetry run scrapy shell -s "DOWNLOADER_MIDDLEWARES={}" https://google.com`
 
 ## Context
 
