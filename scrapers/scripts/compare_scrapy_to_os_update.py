@@ -98,7 +98,7 @@ def main():
             )
             if diff:
                 logging.error(f"Differences found for {os_item['identifier']}")
-                logging.error(diff)
+                logging.error(json.dumps(diff, indent=4))
 
     logging.info(f"complete! checked {len(os_scrape_data)} items")
 
