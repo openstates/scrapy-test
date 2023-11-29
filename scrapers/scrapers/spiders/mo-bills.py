@@ -102,7 +102,7 @@ class BillsSpider(Spider):
         super().__init__(**kwargs)
 
     def start_requests(self):
-        self.parse_subjects(self.session)
+        # self.parse_subjects(self.session)
 
         if self.chamber in [Chamber.UPPER, None]:
             # scrape senate bills
@@ -116,8 +116,8 @@ class BillsSpider(Spider):
 
         if self.chamber in [Chamber.LOWER, None]:
             # scrape house bills
-            hb_xml_url = 'https://documents.house.mo.gov/xml/SessionListTest.xml'
-            yield Request(url=hb_xml_url, callback=self.parse_lower_chamber, headers=custom_headers)
+            session_list_url = f'https://documents.house.mo.gov/xml/{self.session_code(self.session)}-SessionList.XML'
+            yield Request(url=session_list_url, callback=self.parse_lower_chamber, headers=custom_headers)
 
     def parse_upper_chamber(self, response):
         for bill_table in response.xpath("//a[contains(@id, 'hlBillNum')]"):
@@ -125,42 +125,42 @@ class BillsSpider(Spider):
 
     def parse_lower_chamber(self, response):
         first_id = None
+        session_id = None
+
         for session in response.xpath('//Session'):
             session_id = session.xpath('./ID/text()').get()
-            if not first_id:
-                first_id = session_id
-
+            # if not first_id:
+            #     first_id = session_id
             session_year = session.xpath('./SessionYear/text()').get()
             session_code = session.xpath('./SessionCode/text()').get()
             session_code = '' if session_code == 'R' else session_code
             if f'{session_year}{session_code}' == self.session:
                 break
-        if first_id == session_id:
-            # extract data from https://documents.house.mo.gov/xml/BillListTest.xml
-            bill_list_url = 'https://documents.house.mo.gov/xml/BillListTest.xml'
-            yield Request(url=bill_list_url, callback=self.parse_house_bill_list)
-        else:
+        # if first_id == session_id:
+        #     bill_list_url = f'https://documents.house.mo.gov/xml/{self.session_code(self.session)}-BillList.XML'
+        #     yield Request(url=bill_list_url, callback=self.parse_house_bill_list)
+        # else:
             # upzip https://documents.house.mo.gov/xml/{ID}.zip and extract data from xmls
-            zipped_xml_url = f'https://documents.house.mo.gov/xml/{session_id}.zip'
-            zip_response = requests.get(zipped_xml_url, headers=custom_headers)
-            zip_file = ZipFile(BytesIO(zip_response.content))
-            # read 221-BillList.xml in zip file
-            bill_list_content = zip_file.read(
-                f'{session_id}/{session_id}-BillList.xml')
-            bl_response = Selector(text=bill_list_content, type='xml')
+        zipped_xml_url = f'https://documents.house.mo.gov/xml/{session_id}.zip'
+        zip_response = requests.get(zipped_xml_url, headers=custom_headers)
+        zip_file = ZipFile(BytesIO(zip_response.content))
+        # read 221-BillList.xml in zip file
+        bill_list_content = zip_file.read(
+            f'{session_id}/{session_id}-BillList.xml')
+        bl_response = Selector(text=bill_list_content, type='xml')
 
-            for request in self.parse_house_bill_list(bl_response, zip_file=zip_file, session_id=session_id):
-                yield request
-            for bill in bl_response.xpath('//BillXML'):
-                bill_url = bill.xpath('./BillXMLLink/text()').get()
-                bill_type = bill.xpath('./BillType/text()').get()
-                bill_num = bill.xpath('./BillNumber/text()').get()
-                bill_id = f'{bill_type} {bill_num}'
-                bill_year = bill.xpath('./SessionYear/text()').get()
-                bill_code = bill.xpath('./SessionCode/text()').get()
+        for request in self.parse_house_bill_list(bl_response, zip_file=zip_file, session_id=session_id):
+            yield request
+        for bill in bl_response.xpath('//BillXML'):
+            bill_url = bill.xpath('./BillXMLLink/text()').get()
+            bill_type = bill.xpath('./BillType/text()').get()
+            bill_num = bill.xpath('./BillNumber/text()').get()
+            bill_id = f'{bill_type} {bill_num}'
+            bill_year = bill.xpath('./SessionYear/text()').get()
+            bill_code = bill.xpath('./SessionCode/text()').get()
 
-                # get the file path in zip
-                # convert https://documents.house.mo.gov/xml/221-HB1.xml to 221/221-HB1.xml
+            # get the file path in zip
+            # convert https://documents.house.mo.gov/xml/221-HB1.xml to 221/221-HB1.xml
 
     # Get House Bills
     def parse_house_bill_list(self, response, **kwargs):
@@ -270,37 +270,41 @@ class BillsSpider(Spider):
         bill_actions = response.xpath('//BillInformation/Action')
         old_action_url = ''
         for action in bill_actions:
-            # new actions are represented by having dates in the first td
-            # otherwise, it's a continuation of the description from the
-            # previous action
             action_url = action.xpath(
                 './Link/text()').get().replace('.aspx', 'actions.aspx').strip()
+            # the correct action description in the website is the combination of
+            # Description, Comments, and RollCall
+            # = Description - Comments - RollCall
             action_title = action.xpath('./Description/text()').get()
+            # if there is comments
+            if action.xpath('./Comments'):
+                action_comment = action.xpath('./Comments/text()').get()
+                action_title = f'{action_title} - {action_comment}'
             action_date = dt.datetime.strptime(
                 action.xpath('./PubDate/text()').get(), '%Y-%m-%d')
             actor = house_get_actor_from_action(action_title)
             type_class = get_action(actor, action_title)
 
-            # votes
-            # if action.xpath('./RollCall'):
-            #     rc_yes = action.xpath('./RollCall/TotalYes/text()').get('')
-            #     rc_no = action.xpath('./RollCall/TotalNo/text()').get('')
-            #     rc_present = action.xpath(
-            #         './RollCall/TotalPresent/text()').get('')
+            # if there is rollcall
+            if action.xpath('./RollCall'):
+                rc_yes = action.xpath('./RollCall/TotalYes/text()').get('')
+                rc_no = action.xpath('./RollCall/TotalNo/text()').get('')
+                rc_present = action.xpath(
+                    './RollCall/TotalPresent/text()').get('')
 
-            #     vote = VoteEvent(
-            #         chamber=actor,
-            #         motion_text=action_title,
-            #         result="pass" if rc_yes > rc_no else "fail",
-            #         classification="passage",
-            #         start_date=TIMEZONE.localize(action_date),
-            #         bill=bill,
-            #     )
+                # vote = VoteEvent(
+                #     chamber=actor,
+                #     motion_text=action_title,
+                #     result="pass" if rc_yes > rc_no else "fail",
+                #     classification="passage",
+                #     start_date=TIMEZONE.localize(action_date),
+                #     bill=bill,
+                # )
 
-            #     vote.add_source(action_url)
-            #     yield vote.as_dict()
+                # vote.add_source(action_url)
+                # yield vote.as_dict()
 
-            #     action_title = f'{action_title} - AYES: {rc_yes} NOES: {rc_no} PRESENT: {rc_present}'
+                action_title = f'{action_title} - AYES: {rc_yes} NOES: {rc_no} PRESENT: {rc_present}'
 
             bill.add_action(
                 action_title,
@@ -376,11 +380,12 @@ class BillsSpider(Spider):
         for row in response.xpath('//BillInformation/Amendment'):
             version = row.xpath('./AmendmentDescription/text()').get()
             path = row.xpath('./AmendmentText/text()').get().strip()
-            summary_name = f"Amendment {version}"
+            path_name = path.split('/')[-1].replace('.pdf', '')
+            summary_name = f"Amendment {version or path_name}"
 
             status_desc = row.xpath('./StatusDescription/text()').get()
             if status_desc:
-                summary_name = f"{summary_name} {status_desc}"
+                summary_name = f"{summary_name} ({status_desc})"
 
             if ".pdf" in path:
                 mimetype = "application/pdf"
@@ -395,6 +400,18 @@ class BillsSpider(Spider):
             path = row.xpath('./FiscalNoteLink/text()').get().strip()
             version = path.split('/')[-1].replace('.pdf', '')
             summary_name = f'Fiscal Note {version}'
+            if ".pdf" in path:
+                mimetype = "application/pdf"
+            else:
+                mimetype = ""
+            bill.add_document_link(
+                summary_name, path, media_type=mimetype, on_duplicate="ignore"
+            )
+
+        # house Witnesses
+        for row in response.xpath('//BillInformation/Witness'):
+            path = row.xpath('./WitnessFormsLink/text()').get().strip()
+            summary_name = f'Bill Summary (Witnesses)'
             if ".pdf" in path:
                 mimetype = "application/pdf"
             else:
@@ -457,7 +474,7 @@ class BillsSpider(Spider):
             if not link_text:
                 link_text = "Missing description"
             if "adopted" in link_text.lower():
-                link_url = link.xpath("@href").get()
+                link_url = response.urljoin(link.xpath("@href").get())
                 bill.add_version_link(
                     link_text,
                     link_url,
@@ -594,7 +611,7 @@ class BillsSpider(Spider):
 
         yield bill.as_dict()
 
-    # Get session type
+    # Get session type for senate
     def session_type(self, session):
         # R or S1
         if len(session) == 4:
@@ -603,6 +620,19 @@ class BillsSpider(Spider):
             return "E1"
         elif "S2" in session:
             return "E2"
+        else:
+            raise UnrecognizedSessionType(session)
+
+    # Get session code for house
+    def session_code(self, session):
+        # R or S1
+        year = session[2:]
+        if len(session) == 4:
+            return f"{year}1"
+        elif "S1" in session:
+            return f"{year}3"
+        elif "S2" in session:
+            return f"{year}4"
         else:
             raise UnrecognizedSessionType(session)
 

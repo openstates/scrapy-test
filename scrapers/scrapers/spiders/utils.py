@@ -7,6 +7,7 @@ custom_headers = {
 }
 
 
+# get css/xpath wrapper with the response from an url
 def lxmlize(url):
     response = requests.get(url, headers=custom_headers)
     return Selector(response)
