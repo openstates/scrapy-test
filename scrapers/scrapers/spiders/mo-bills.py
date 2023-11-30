@@ -102,7 +102,7 @@ class BillsSpider(Spider):
         super().__init__(**kwargs)
 
     def start_requests(self):
-        # self.parse_subjects(self.session)
+        self.parse_subjects(self.session)
 
         if self.chamber in [Chamber.UPPER, None]:
             # scrape senate bills
@@ -110,13 +110,13 @@ class BillsSpider(Spider):
 
             # Save the root URL, since we'll use it later.
             bill_root = f"http://www.senate.mo.gov/{year2}info/BTS_Web/"
-            sb_url = f"{bill_root}BillList.aspx?SessionType={self.session_type(self.session)}"
+            sb_url = f"{bill_root}BillList.aspx?SessionType={self.get_session_type(self.session)}"
 
             yield Request(url=sb_url, callback=self.parse_upper_chamber, headers=custom_headers)
 
         if self.chamber in [Chamber.LOWER, None]:
             # scrape house bills
-            session_list_url = f'https://documents.house.mo.gov/xml/{self.session_code(self.session)}-SessionList.XML'
+            session_list_url = f'https://documents.house.mo.gov/xml/{self.get_session_code(self.session)}-SessionList.XML'
             yield Request(url=session_list_url, callback=self.parse_lower_chamber, headers=custom_headers)
 
     def parse_upper_chamber(self, response):
@@ -124,23 +124,16 @@ class BillsSpider(Spider):
             yield Request(url=response.urljoin(bill_table.xpath('@href').get()), callback=self.parse_senate_billpage)
 
     def parse_lower_chamber(self, response):
-        first_id = None
         session_id = None
 
         for session in response.xpath('//Session'):
             session_id = session.xpath('./ID/text()').get()
-            # if not first_id:
-            #     first_id = session_id
             session_year = session.xpath('./SessionYear/text()').get()
             session_code = session.xpath('./SessionCode/text()').get()
             session_code = '' if session_code == 'R' else session_code
             if f'{session_year}{session_code}' == self.session:
                 break
-        # if first_id == session_id:
-        #     bill_list_url = f'https://documents.house.mo.gov/xml/{self.session_code(self.session)}-BillList.XML'
-        #     yield Request(url=bill_list_url, callback=self.parse_house_bill_list)
-        # else:
-            # upzip https://documents.house.mo.gov/xml/{ID}.zip and extract data from xmls
+
         zipped_xml_url = f'https://documents.house.mo.gov/xml/{session_id}.zip'
         zip_response = requests.get(zipped_xml_url, headers=custom_headers)
         zip_file = ZipFile(BytesIO(zip_response.content))
@@ -151,16 +144,6 @@ class BillsSpider(Spider):
 
         for request in self.parse_house_bill_list(bl_response, zip_file=zip_file, session_id=session_id):
             yield request
-        for bill in bl_response.xpath('//BillXML'):
-            bill_url = bill.xpath('./BillXMLLink/text()').get()
-            bill_type = bill.xpath('./BillType/text()').get()
-            bill_num = bill.xpath('./BillNumber/text()').get()
-            bill_id = f'{bill_type} {bill_num}'
-            bill_year = bill.xpath('./SessionYear/text()').get()
-            bill_code = bill.xpath('./SessionCode/text()').get()
-
-            # get the file path in zip
-            # convert https://documents.house.mo.gov/xml/221-HB1.xml to 221/221-HB1.xml
 
     # Get House Bills
     def parse_house_bill_list(self, response, **kwargs):
@@ -233,7 +216,10 @@ class BillsSpider(Spider):
         # add sponsors
         self.parse_house_sponsors(response, bill_id, bill)
         # add actions
-        self.parse_house_actions(response, bill)
+        votes = self.parse_house_actions(response, bill)
+        # yield if there are votes in the actions
+        for vote in votes:
+            yield vote.as_dict()
         # add bill versions
         self.parse_house_bill_versions(response, bill)
 
@@ -264,11 +250,13 @@ class BillsSpider(Spider):
                     primary=True,
                 )
 
-    # Get the house bill actions
+    # Get the house bill actions and return the possible votes
     def parse_house_actions(self, response, bill):
         # add actions
         bill_actions = response.xpath('//BillInformation/Action')
         old_action_url = ''
+        votes = []
+
         for action in bill_actions:
             action_url = action.xpath(
                 './Link/text()').get().replace('.aspx', 'actions.aspx').strip()
@@ -291,20 +279,19 @@ class BillsSpider(Spider):
                 rc_no = action.xpath('./RollCall/TotalNo/text()').get('')
                 rc_present = action.xpath(
                     './RollCall/TotalPresent/text()').get('')
-
-                # vote = VoteEvent(
-                #     chamber=actor,
-                #     motion_text=action_title,
-                #     result="pass" if rc_yes > rc_no else "fail",
-                #     classification="passage",
-                #     start_date=TIMEZONE.localize(action_date),
-                #     bill=bill,
-                # )
-
-                # vote.add_source(action_url)
-                # yield vote.as_dict()
-
                 action_title = f'{action_title} - AYES: {rc_yes} NOES: {rc_no} PRESENT: {rc_present}'
+
+                vote = VoteEvent(
+                    chamber=actor,
+                    motion_text=action_title,
+                    result="pass" if rc_yes > rc_no else "fail",
+                    classification="passage",
+                    start_date=TIMEZONE.localize(action_date),
+                    bill=bill,
+                )
+
+                vote.add_source(action_url)
+                votes.append(vote)
 
             bill.add_action(
                 action_title,
@@ -314,9 +301,10 @@ class BillsSpider(Spider):
             )
             if old_action_url != action_url:
                 bill.add_source(action_url)
+
             old_action_url = action_url
 
-            # get journals (uncomments if this neeeds)
+            # get journals (uncomments if this script needs)
             # journal_link = action.xpath('./JournalLink/text()').get()
             # if journal_link:
             #     house_journal_start = action.xpath(
@@ -343,6 +331,7 @@ class BillsSpider(Spider):
             #         media_type=mimetype,
             #         on_duplicate="ignore",
             #     )
+            return votes
 
     # Get the house bill versions
     def parse_house_bill_versions(self, response, bill):
@@ -614,7 +603,7 @@ class BillsSpider(Spider):
         yield bill.as_dict()
 
     # Get session type for senate
-    def session_type(self, session):
+    def get_session_type(self, session):
         # R or S1
         if len(session) == 4:
             return "R"
@@ -626,7 +615,7 @@ class BillsSpider(Spider):
             raise UnrecognizedSessionType(session)
 
     # Get session code for house
-    def session_code(self, session):
+    def get_session_code(self, session):
         # R or S1
         year = session[2:]
         if len(session) == 4:
@@ -653,7 +642,7 @@ class BillsSpider(Spider):
         subject_list_url = (
             "http://www.senate.mo.gov/{}info/BTS_Web/"
             "Keywords.aspx?SessionType={}".format(
-                session[2:4], self.session_type(session)
+                session[2:4], self.get_session_type(session)
             )
         )
         subject_page = lxmlize(subject_list_url)
