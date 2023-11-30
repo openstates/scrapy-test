@@ -483,6 +483,8 @@ class BillsSpider(Spider):
                 )
 
         # Get consponsors
+        # This begins a chain of subsequent requests for: sponsors, actions, versions, fiscal notes
+        # all requests are required to yield the complete Bill
         cosponsor_url = response.url.replace('Bill.aspx', 'CoSponsors.aspx')
         yield Request(
             url=cosponsor_url,
