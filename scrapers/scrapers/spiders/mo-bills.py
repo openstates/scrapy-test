@@ -331,7 +331,7 @@ class BillsSpider(Spider):
             #         media_type=mimetype,
             #         on_duplicate="ignore",
             #     )
-            return votes
+        return votes
 
     # Get the house bill versions
     def parse_house_bill_versions(self, response, bill):
