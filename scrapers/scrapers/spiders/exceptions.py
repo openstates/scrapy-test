@@ -13,3 +13,10 @@ class SelectorError(ValueError):
     Error raised when a selector's constraint (min_items/max_items, etc.) is not met.
     """
     pass
+
+
+class UnrecognizedSessionType(BaseException):
+    def __init__(self, session):
+        super().__init__(
+            f"Session {session} has the unrecognized session types."
+        )
