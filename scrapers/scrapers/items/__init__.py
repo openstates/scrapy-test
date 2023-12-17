@@ -1,1 +1,1 @@
-from .bills import BillStub, Chamber
+from .bills import BillStub, Chamber, BillItem
