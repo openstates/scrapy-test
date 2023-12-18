@@ -8,12 +8,18 @@ from collections import defaultdict
 from io import BytesIO
 from zipfile import ZipFile
 
-from scrapy import Request, Selector, Spider
+from scrapy import Request, Selector
 
+from .state import Missouri
 from core.scrape import Bill, VoteEvent
-from ..items import Chamber
-from .exceptions import UnrecognizedSessionType
-from .utils import custom_headers, lxmlize, clean_text
+from scrapers.spiders import BaseSpider
+from scrapers.items import Chamber
+from scrapers.utils import (
+    custom_headers,
+    clean_text,
+    lxmlize,
+    UnrecognizedSessionType)
+
 
 bill_types = {
     "HB ": "bill",
@@ -89,19 +95,19 @@ def get_action(actor, action):
     return categories or None
 
 
-class BillsSpider(Spider):
+class BillsSpider(BaseSpider):
     name = "mo-bills"
-    session = None
-    chamber = None
-
-    subjects = defaultdict(list)
+    subject_mapping = defaultdict(set)
+    start_urls = ['https://documents.house.mo.gov']
 
     def __init__(self, session=None, chamber=None, **kwargs):
         self.session = session
         self.chamber = chamber
+        self.jurisdiction = Missouri()
         super().__init__(**kwargs)
 
-    def start_requests(self):
+    def do_scrape(self, response):
+        # parse subjects
         self.parse_subjects(self.session)
 
         if self.chamber in [Chamber.UPPER, None]:
@@ -116,7 +122,8 @@ class BillsSpider(Spider):
 
         if self.chamber in [Chamber.LOWER, None]:
             # scrape house bills
-            session_list_url = f'https://documents.house.mo.gov/xml/{self.get_session_code(self.session)}-SessionList.XML'
+            year = str(dt.date.today().year)[2:4]
+            session_list_url = f'https://documents.house.mo.gov/xml/{year}1-SessionList.XML'
             yield Request(url=session_list_url, callback=self.parse_lower_chamber, headers=custom_headers)
 
     def parse_upper_chamber(self, response):
@@ -133,6 +140,9 @@ class BillsSpider(Spider):
             session_code = '' if session_code == 'R' else session_code
             if f'{session_year}{session_code}' == self.session:
                 break
+
+        if not session_id:
+            raise UnrecognizedSessionType(self.session)
 
         zipped_xml_url = f'https://documents.house.mo.gov/xml/{session_id}.zip'
         zip_response = requests.get(zipped_xml_url, headers=custom_headers)
@@ -184,8 +194,8 @@ class BillsSpider(Spider):
         subs = []
         bid = bill_id.replace(" ", "")
 
-        if bid in self.subjects:
-            subs = self.subjects[bid]
+        if bid in self.subject_mapping:
+            subs = self.subject_mapping[bid]
             self.logger.info("With subjects for this bill")
 
         if bill_desc == "":
@@ -219,11 +229,11 @@ class BillsSpider(Spider):
         votes = self.parse_house_actions(response, bill)
         # yield if there are votes in the actions
         for vote in votes:
-            yield vote.as_dict()
+            yield dict(vote_event=vote)
         # add bill versions
         self.parse_house_bill_versions(response, bill)
 
-        yield bill.as_dict()
+        yield dict(bill=bill)
 
     # Get house sponsors
     def parse_house_sponsors(self, response, bill_id, bill):
@@ -234,6 +244,10 @@ class BillsSpider(Spider):
                 classification = 'co-sponsor'
             elif sponsor_type == 'Sponsor':
                 classification = 'primary'
+            elif 'House' in sponsor_type:
+                classification = 'lower'
+            elif 'Senate' in sponsor_type:
+                classification = 'upper'
             else:
                 classification = ''
 
@@ -426,8 +440,8 @@ class BillsSpider(Spider):
         subs = []
         bid = bill_id.replace(" ", "")
 
-        if bid in self.subjects:
-            subs = self.subjects[bid]
+        if bid in self.subject_mapping:
+            subs = self.subject_mapping[bid]
 
         if bid == "XXXXXX":
             self.logger.warning(f"Skipping Junk Bill {bid}")
@@ -600,7 +614,7 @@ class BillsSpider(Spider):
                 description, pdf_url, media_type=mimetype, on_duplicate="ignore"
             )
 
-        yield bill.as_dict()
+        yield dict(bill=bill)
 
     # Get session type for senate
     def get_session_type(self, session):
@@ -660,7 +674,7 @@ class BillsSpider(Spider):
                 "./following-sibling::span[1]/a[contains(@href, 'BillID')]/text()[normalize-space()]").getall()
 
             for bill_id in bill_ids:
-                self.subjects[bill_id].append(subject_text)
+                self.subject_mapping[bill_id].add(subject_text)
 
     # Scrape house subjects
     def parse_house_subjects(self, session):
@@ -697,4 +711,4 @@ class BillsSpider(Spider):
                 if bill_id is None or not (len(bill_id) > 0):
                     continue
                 self.logger.info("Found {}.".format(bill_id))
-                self.subjects[bill_id].append(subject_text)
+                self.subject_mapping[bill_id].add(subject_text)

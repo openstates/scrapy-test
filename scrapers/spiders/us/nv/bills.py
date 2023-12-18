@@ -1,20 +1,23 @@
 import logging
 import re
 import time
+from typing import Any
 import dateutil.parser
 import pytz
-
-import requests
 
 from collections import defaultdict
 from dataclasses import dataclass
 
-from scrapy import Request, Selector, Spider
+from scrapy import Request
 
-from core.scrape import Bill, State
-from .utils import url_xpath
-from .exceptions import BillTitleLengthError, SelectorError
-from ..items import BillStub, Chamber
+from core.scrape import Bill
+from scrapers.spiders import BaseSpider
+from scrapers.items import BillStub, Chamber
+from scrapers.utils import (
+    lxmlize,
+    BillTitleLengthError,
+    SelectorError)
+from .state import Nevada
 
 
 ACTION_CLASSIFIERS = (
@@ -204,203 +207,18 @@ class NVBillStub(BillStub):
     subjects: list
 
 
-class Nevada(State):
-    legislative_sessions = [
-        {
-            "_scraped_name": "26th (2010) Special Session",
-            "classification": "special",
-            "identifier": "2010Special26",
-            "name": "26th Special Session (2010)",
-            "start_date": "2010-02-23",
-            "end_date": "2010-03-01",
-        },
-        {
-            "_scraped_name": "27th (2013) Special Session",
-            "classification": "special",
-            "identifier": "2013Special27",
-            "name": "27th Special Session (2013)",
-            "start_date": "2013-06-04",
-            "end_date": "2013-06-04",
-        },
-        {
-            "_scraped_name": "28th (2014) Special Session",
-            "classification": "special",
-            "identifier": "2014Special28",
-            "name": "28th Special Session (2014)",
-            "start_date": "2014-09-10",
-            "end_date": "2014-09-11",
-        },
-        {
-            "_scraped_name": "29th (2015) Special Session",
-            "classification": "special",
-            "identifier": "2015Special29",
-            "name": "29th Special Session (2015)",
-            "start_date": "2015-12-16",
-            "end_date": "2015-12-19",
-        },
-        {
-            "_scraped_name": "30th (2016) Special Session",
-            "classification": "special",
-            "identifier": "2016Special30",
-            "name": "30th Special Session (2016)",
-            "start_date": "2016-10-10",
-            "end_date": "2016-10-14",
-        },
-        {
-            "_scraped_name": "75th (2009) Session",
-            "classification": "primary",
-            "identifier": "75",
-            "name": "2009 Regular Session",
-            "start_date": "2009-02-02",
-            "end_date": "2009-06-02",
-        },
-        {
-            "_scraped_name": "76th (2011) Session",
-            "classification": "primary",
-            "identifier": "76",
-            "name": "2011 Regular Session",
-            "start_date": "2011-02-07",
-            "end_date": "2011-06-06",
-        },
-        {
-            "_scraped_name": "77th (2013) Session",
-            "classification": "primary",
-            "identifier": "77",
-            "name": "2013 Regular Session",
-            "start_date": "2013-02-04",
-            "end_date": "2013-06-03",
-        },
-        {
-            "_scraped_name": "78th (2015) Session",
-            "classification": "primary",
-            "identifier": "78",
-            "name": "2015 Regular Session",
-            "start_date": "2015-02-15",
-            "end_date": "2015-06-01",
-        },
-        {
-            "_scraped_name": "79th (2017) Session",
-            "classification": "primary",
-            "identifier": "79",
-            "name": "2017 Regular Session",
-            "start_date": "2017-02-06",
-            "end_date": "2017-06-06",
-        },
-        {
-            "_scraped_name": "80th (2019) Session",
-            "classification": "primary",
-            "identifier": "80",
-            "name": "2019 Regular Session",
-            "start_date": "2019-02-04",
-            "end_date": "2019-06-04",
-        },
-        {
-            "_scraped_name": "31st (2020) Special Session",
-            "classification": "special",
-            "identifier": "2020Special31",
-            "name": "31st (2020) Special Session",
-            "start_date": "2020-07-08",
-            "end_date": "2020-07-19",
-        },
-        {
-            "_scraped_name": "32nd (2020) Special Session",
-            "classification": "special",
-            "identifier": "2020Special32",
-            "name": "32nd (2020) Special Session",
-            "start_date": "2020-07-31",
-            "end_date": "2020-08-06",
-        },
-        {
-            "_scraped_name": "81st (2021) Session",
-            "classification": "primary",
-            "identifier": "81",
-            "name": "2021 Regular Session",
-            "start_date": "2021-02-01",
-            "end_date": "2021-06-01",
-            "active": False,
-        },
-        {
-            "_scraped_name": "33rd (2021) Special Session",
-            "classification": "special",
-            "identifier": "2021Special33",
-            "name": "33rd (2021) Special Session",
-            "start_date": "2021-11-12",
-            "end_date": "2021-11-16",
-            "active": False,
-        },
-        {
-            "_scraped_name": "82nd (2023) Session",
-            "classification": "primary",
-            "identifier": "82",
-            "name": "2023 Regular Session",
-            "start_date": "2023-02-01",
-            "end_date": "2023-06-01",
-            "active": True,
-        },
-        {
-            "_scraped_name": "34th (2023) Special Session",
-            "classification": "special",
-            "identifier": "2023Special34",
-            "name": "34th (2023) Special Session",
-            "start_date": "2023-06-06",
-            "end_date": "2023-06-06",
-            "active": True,
-        },
-        {
-            "_scraped_name": "35th (2023) Special Session",
-            "classification": "special",
-            "identifier": "2023Special35",
-            "name": "35th (2023) Special Session",
-            "start_date": "2023-06-07",
-            # TODO: change end_date
-            "end_date": "2023-06-30",
-            "active": True,
-        },
-    ]
-    ignored_scraped_sessions = [
-        "25th (2008) Special Session",
-        "24th (2008) Special Session",
-        "23rd (2007) Special Session",
-        "74th (2007) Session",
-        "22nd (2005) Special Session",
-        "73rd (2005) Session",
-        "21st (2004) Special Session",
-        "20th (2003) Special Session",
-        "19th (2003) Special Session",
-        "72nd (2003) Session",
-        "18th (2002) Special Session",
-        "17th (2001) Special Session",
-        "71st (2001) Session",
-        "70th (1999) Session",
-        "69th (1997) Session",
-        "68th (1995) Session",
-        "67th (1993) Session",
-        "66th (1991) Session",
-        "16th (1989) Special Session",
-        "65th (1989) Session",
-        "64th (1987) Session",
-        "63rd (1985) Session",
-    ]
-
-    def get_session_list(self):
-        return url_xpath(
-            "https://www.leg.state.nv.us/Session/",
-            '//div[contains(@class, "list-group-item-heading")]/text()',
-        )
-
-
-class BillsSpider(Spider):
+class BillsSpider(BaseSpider):
     name = "nv-bills"
-    session = None
+    subject_mapping = defaultdict(set)
+    start_urls = ['https://www.leg.state.nv.us']
 
-    def __init__(self, session=None, **kwargs):
+    def __init__(self, session=None, chamber=None, **kwargs):
         self.session = session
-        self.subject_mapping = defaultdict(set)
+        self.chamber = chamber
         self.jurisdiction = Nevada()
-
         super().__init__(**kwargs)
 
-    def start_requests(self):
+    def do_scrape(self, response):
         # TODO default active sessions
         slug = session_slugs[self.session]
         # fetch and parse subjects report to create bill:subjects mapping
@@ -409,8 +227,7 @@ class BillsSpider(Spider):
             f"https://www.leg.state.nv.us/Session/{slug}/Reports/"
             f"TablesAndIndex/{year}_{self.session}-index.html"
         )
-        dependency_request = requests.get(url)
-        self.parse_bill_subjects_page(Selector(dependency_request))
+        self.parse_bill_subjects_page(lxmlize(url))
 
         # proceed bill listing
         bill_listing_url = (f"https://www.leg.state.nv.us/App/NELIS/REL/{slug}/"
@@ -445,14 +262,6 @@ class BillsSpider(Spider):
                         self.subject_mapping[bill_id].add(subject)
 
     def parse_bill_list(self, response):
-        # Jurisdiction scraper
-        # yield a single Jurisdiction object
-        yield {"jurisdiction": self.jurisdiction}
-
-        # yield all organizations
-        for org in self.jurisdiction.get_organizations():
-            yield {"organization": org}
-
         bill_link_elems = response.css(".row a")
         logging.info(f"Found {len(bill_link_elems)} bill link elements")
         for link in bill_link_elems:
@@ -617,4 +426,4 @@ class BillsSpider(Spider):
                 title, link, media_type="application/pdf", on_duplicate="ignore"
             )
 
-        yield {"bill": bill}
+        yield dict(bill=bill)
