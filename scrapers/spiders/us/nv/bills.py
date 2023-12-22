@@ -12,7 +12,7 @@ from scrapy import Request
 
 from core.scrape import Bill
 from scrapers.spiders import BaseSpider
-from scrapers.items import BillStub, Chamber
+from scrapers.items import BillStub, Chamber, BillItem
 from scrapers.utils import (
     lxmlize,
     BillTitleLengthError,
@@ -426,4 +426,4 @@ class BillsSpider(BaseSpider):
                 title, link, media_type="application/pdf", on_duplicate="ignore"
             )
 
-        yield dict(bill=bill)
+        yield BillItem.load(bill)

@@ -1,4 +1,5 @@
 from scrapy import Spider
+from scrapers.items import StateItem, OrganizationItem
 
 
 class BaseSpider(Spider):
@@ -9,10 +10,10 @@ class BaseSpider(Spider):
         # Jurisdiction scraper
         # yield a single Jurisdiction object
         if self.jurisdiction:
-            yield dict(jurisdiction=self.jurisdiction)
+            yield StateItem.load(self.jurisdiction)
             # yield all organizations
             for org in self.jurisdiction.get_organizations():
-                yield dict(organization=org)
+                yield OrganizationItem.load(org)
 
         for request in self.do_scrape(response):
             yield request

@@ -2,6 +2,7 @@ __pycache__/
 .idea
 
 # scraper data output
+_data/
 **/*.json
 
 # python virtual environment

@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
-from core.scrape import Bill, VoteEvent, Organization, State
+from scrapy.item import Item, Field
+from core.scrape import Bill, State, Organization, VoteEvent
+import inspect
 
 
 class Chamber(str, Enum):
@@ -18,9 +20,34 @@ class BillStub:
     chamber: Chamber
 
 
+class BaseItem:
+    @classmethod
+    def load(cls, item):
+        for name, value in inspect.getmembers(item):
+            if not name.startswith('__'):
+                setattr(cls, name,  value)
+        return cls()
+
+
 @dataclass
-class BillItem:
-    bill: Bill
-    vote_event: VoteEvent
-    jurisdiction: State
-    organization: Organization
+class BillItem(BaseItem):
+    def __repr__(self) -> str:
+        return f'BillItem({self._id})'
+
+
+@dataclass
+class StateItem(BaseItem):
+    def __repr__(self) -> str:
+        return f'StateItem({self._id})'
+
+
+@dataclass
+class OrganizationItem(BaseItem):
+    def __repr__(self) -> str:
+        return f'OrganizationItem({self._id})'
+
+
+@dataclass
+class VoteEventItem(BaseItem):
+    def __repr__(self) -> str:
+        return f'VoteEventItem({self._id})'

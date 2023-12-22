@@ -86,25 +86,14 @@ class SaveObjectsPipeline:
 
         Generally shouldn't be called directly.
         """
-        if 'bill' in item:
-            obj = item['bill']
-        elif 'vote_event' in item:
-            obj = item['vote_event']
-        elif 'jurisdiction' in item:
-            obj = item['jurisdiction']
-        elif 'organization' in item:
-            obj = item['organization']
-        else:
-            raise ValueError('Found Unknown Type of Item')
-
-        self.save_object(obj, spider)
+        self.save_object(item, spider)
         # validate after writing, allows for inspection on failure
         try:
-            obj.validate()
+            item.validate()
         except ValueError as ve:
             logger.warn(ve)
         # after saving and validating, save subordinate objects
-        for obj in obj._related:
+        for obj in item._related:
             self.save_object(obj, spider)
 
         return item

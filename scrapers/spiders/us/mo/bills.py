@@ -13,7 +13,7 @@ from scrapy import Request, Selector
 from .state import Missouri
 from core.scrape import Bill, VoteEvent
 from scrapers.spiders import BaseSpider
-from scrapers.items import Chamber
+from scrapers.items import Chamber, BillItem, VoteEventItem
 from scrapers.utils import (
     custom_headers,
     clean_text,
@@ -229,11 +229,11 @@ class BillsSpider(BaseSpider):
         votes = self.parse_house_actions(response, bill)
         # yield if there are votes in the actions
         for vote in votes:
-            yield dict(vote_event=vote)
+            yield VoteEventItem.load(vote)
         # add bill versions
         self.parse_house_bill_versions(response, bill)
 
-        yield dict(bill=bill)
+        yield BillItem.load(bill)
 
     # Get house sponsors
     def parse_house_sponsors(self, response, bill_id, bill):
@@ -244,10 +244,6 @@ class BillsSpider(BaseSpider):
                 classification = 'co-sponsor'
             elif sponsor_type == 'Sponsor':
                 classification = 'primary'
-            elif 'House' in sponsor_type:
-                classification = 'lower'
-            elif 'Senate' in sponsor_type:
-                classification = 'upper'
             else:
                 classification = ''
 
@@ -614,7 +610,7 @@ class BillsSpider(BaseSpider):
                 description, pdf_url, media_type=mimetype, on_duplicate="ignore"
             )
 
-        yield dict(bill=bill)
+        yield BillItem.load(bill)
 
     # Get session type for senate
     def get_session_type(self, session):
