@@ -10,10 +10,10 @@ class BaseSpider(Spider):
         # Jurisdiction scraper
         # yield a single Jurisdiction object
         if self.jurisdiction:
-            yield StateItem.load(self.jurisdiction)
+            yield StateItem(self.jurisdiction)
             # yield all organizations
             for org in self.jurisdiction.get_organizations():
-                yield OrganizationItem.load(org)
+                yield OrganizationItem(org)
 
         for request in self.do_scrape(response):
             yield request

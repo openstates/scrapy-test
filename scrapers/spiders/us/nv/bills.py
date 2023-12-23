@@ -426,4 +426,4 @@ class BillsSpider(BaseSpider):
                 title, link, media_type="application/pdf", on_duplicate="ignore"
             )
 
-        yield BillItem.load(bill)
+        yield BillItem(bill)

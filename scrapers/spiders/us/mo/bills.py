@@ -229,11 +229,11 @@ class BillsSpider(BaseSpider):
         votes = self.parse_house_actions(response, bill)
         # yield if there are votes in the actions
         for vote in votes:
-            yield VoteEventItem.load(vote)
+            yield VoteEventItem(vote)
         # add bill versions
         self.parse_house_bill_versions(response, bill)
 
-        yield BillItem.load(bill)
+        yield BillItem(bill)
 
     # Get house sponsors
     def parse_house_sponsors(self, response, bill_id, bill):
@@ -610,7 +610,7 @@ class BillsSpider(BaseSpider):
                 description, pdf_url, media_type=mimetype, on_duplicate="ignore"
             )
 
-        yield BillItem.load(bill)
+        yield BillItem(bill)
 
     # Get session type for senate
     def get_session_type(self, session):
