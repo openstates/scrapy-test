@@ -1,5 +1,5 @@
 import inspect
-from typing import Any
+from typing import Any, Union
 from dataclasses import dataclass
 from enum import Enum
 from core.scrape import Bill, State, Organization, VoteEvent
@@ -34,7 +34,7 @@ class BaseItem:
 
 @dataclass
 class BillItem(BaseItem):
-    def __init__(self, item: Bill | None = None):
+    def __init__(self, item: Union[Bill, None] = None):
         super().__init__(item)
 
     def __repr__(self) -> str:
@@ -43,7 +43,7 @@ class BillItem(BaseItem):
 
 @dataclass
 class StateItem(BaseItem):
-    def __init__(self, item: State | None = None):
+    def __init__(self, item: Union[State, None] = None):
         super().__init__(item)
 
     def __repr__(self) -> str:
@@ -52,7 +52,7 @@ class StateItem(BaseItem):
 
 @dataclass
 class OrganizationItem(BaseItem):
-    def __init__(self, item: Organization | None = None):
+    def __init__(self, item: Union[Organization, None] = None):
         super().__init__(item)
 
     def __repr__(self) -> str:
@@ -61,7 +61,7 @@ class OrganizationItem(BaseItem):
 
 @dataclass
 class VoteEventItem(BaseItem):
-    def __init__(self, item: VoteEvent | None = None):
+    def __init__(self, item: Union[VoteEvent, None] = None):
         super().__init__(item)
 
     def __repr__(self) -> str:
