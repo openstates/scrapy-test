@@ -13,8 +13,6 @@ jsonschema = "^4.19.2"
 scrapelib = "^2.2.0"
 pytz = "^2023.3.post1"
 deepdiff = "^6.7.1"
-pytz = "^2023.3.post1"
-
 
 [build-system]
 requires = ["poetry-core"]

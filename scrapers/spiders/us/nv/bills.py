@@ -1,19 +1,23 @@
 import logging
 import re
 import time
+from typing import Any
 import dateutil.parser
 import pytz
-
-import requests
 
 from collections import defaultdict
 from dataclasses import dataclass
 
-from scrapy import Request, Selector, Spider
+from scrapy import Request
 
 from core.scrape import Bill
-from .exceptions import BillTitleLengthError, SelectorError
-from ..items import BillStub, Chamber
+from scrapers.spiders import BaseSpider
+from scrapers.items import BillStub, Chamber, BillItem
+from scrapers.utils import (
+    lxmlize,
+    BillTitleLengthError,
+    SelectorError)
+from .state import Nevada
 
 
 ACTION_CLASSIFIERS = (
@@ -203,16 +207,18 @@ class NVBillStub(BillStub):
     subjects: list
 
 
-class BillsSpider(Spider):
+class BillsSpider(BaseSpider):
     name = "nv-bills"
-    session = None
+    subject_mapping = defaultdict(set)
+    start_urls = ['https://www.leg.state.nv.us']
 
-    def __init__(self, session=None, **kwargs):
+    def __init__(self, session=None, chamber=None, **kwargs):
         self.session = session
-        self.subject_mapping = defaultdict(set)
+        self.chamber = chamber
+        self.jurisdiction = Nevada()
         super().__init__(**kwargs)
 
-    def start_requests(self):
+    def do_scrape(self, response):
         # TODO default active sessions
         slug = session_slugs[self.session]
         # fetch and parse subjects report to create bill:subjects mapping
@@ -221,8 +227,7 @@ class BillsSpider(Spider):
             f"https://www.leg.state.nv.us/Session/{slug}/Reports/"
             f"TablesAndIndex/{year}_{self.session}-index.html"
         )
-        dependency_request = requests.get(url)
-        self.parse_bill_subjects_page(Selector(dependency_request))
+        self.parse_bill_subjects_page(lxmlize(url))
 
         # proceed bill listing
         bill_listing_url = (f"https://www.leg.state.nv.us/App/NELIS/REL/{slug}/"
@@ -244,7 +249,8 @@ class BillsSpider(Spider):
         for p in response.xpath("//p"):
             if p.xpath("@class").get() == "Level0":
                 # many items include "<i>(See also ...)</i>" references that we want to exclude from the main subject
-                see_also_text = "".join(p.xpath('./i//text()').getall()).replace("\r\n", " ")
+                see_also_text = "".join(
+                    p.xpath('./i//text()').getall()).replace("\r\n", " ")
                 subject = ''.join(p.xpath('.//text()').getall()
                                   ).replace("\r\n", " ").replace(see_also_text, "")
             else:
@@ -420,4 +426,4 @@ class BillsSpider(Spider):
                 title, link, media_type="application/pdf", on_duplicate="ignore"
             )
 
-        yield bill.as_dict()
+        yield BillItem(bill)
