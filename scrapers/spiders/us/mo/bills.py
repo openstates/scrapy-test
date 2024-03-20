@@ -97,6 +97,7 @@ def get_action(actor, action):
 
 class BillsSpider(BaseSpider):
     name = "mo-bills"
+    jurisdiction = Missouri
     subject_mapping = defaultdict(set)
     start_urls = ['https://documents.house.mo.gov']
 
