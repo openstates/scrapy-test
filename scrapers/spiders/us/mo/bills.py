@@ -237,17 +237,31 @@ class BillsSpider(BaseSpider):
 
     # Get house sponsors
     def parse_house_sponsors(self, response, bill_id, bill):
-        bill_sponsors = response.xpath('//BillInformation/Sponsor')
+        bill_sponsors = response.xpath("//BillInformation/Sponsor")
         for sponsor in bill_sponsors:
-            sponsor_type = sponsor.xpath('./SponsorType/text()').get()
-            if sponsor_type == 'Co-Sponsor':
-                classification = 'co-sponsor'
-            elif sponsor_type == 'Sponsor':
-                classification = 'primary'
+            sponsor_type = sponsor.xpath("./SponsorType/text()")[0]
+            if sponsor_type == "Co-Sponsor":
+                classification = "cosponsor"
+                primary = False
+            elif sponsor_type == "Sponsor":
+                classification = "primary"
+                primary = True
+            elif sponsor_type == "HouseConferee" or sponsor_type == "SenateConferee":
+                # these appear not to be actual sponsors of the bill but rather people who will
+                # negotiate differing versions of the bill in a cross-chamber conference
+                continue
+            elif sponsor_type == "Handler":
+                # slightly distinct from sponsor: The member who manages a bill on the floor of the House or Senate.
+                # https://house.mo.gov/billtracking/info/glossary.htm
+                # we decided to consider this a "cosponsor" relationship
+                classification = "cosponsor"
+                primary = False
             else:
-                classification = ''
+                # didn't recognize sponsorship type, so we can't make this a sponsor
+                # as classification is required (cannot be empty string)
+                continue
 
-            bill_sponsor = sponsor.xpath('./FullName/text()').get()
+            bill_sponsor = sponsor.xpath("./FullName/text()")[0]
             if bill_sponsor == "" and "HEC" in bill_id:
                 bill.add_sponsorship(
                     "Petition", entity_type="", classification="primary", primary=True
@@ -257,7 +271,7 @@ class BillsSpider(BaseSpider):
                     bill_sponsor,
                     entity_type="person",
                     classification=classification,
-                    primary=True,
+                    primary=primary,
                 )
 
     # Get the house bill actions and return the possible votes
