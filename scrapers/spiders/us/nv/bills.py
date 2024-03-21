@@ -12,7 +12,7 @@ from scrapy import Request
 
 from core.scrape import Bill
 from scrapers.spiders import BaseSpider
-from scrapers.items import BillStub, Chamber, BillItem
+from scrapers.items import BillStub, BillStubItem, bill_stub_schema, Chamber, BillItem
 from scrapers.utils import (
     lxmlize,
     BillTitleLengthError,
@@ -202,24 +202,33 @@ def shorten_bill_title(title):
     return title
 
 
+nv_bill_stub_schema = bill_stub_schema.copy()
+nv_bill_stub_schema["properties"]["subjects"] = {
+    "items": {"type": "string"},
+    "type": "array",
+}
+
 @dataclass
 class NVBillStub(BillStub):
     subjects: list
+    _schema = nv_bill_stub_schema
+
+    def __init__(self, subjects, *args):
+        self.subjects = subjects
+        super(NVBillStub, self).__init__(*args)
 
 
 class BillsSpider(BaseSpider):
     name = "nv-bills"
     jurisdiction = Nevada
     subject_mapping = defaultdict(set)
-    start_urls = ['https://www.leg.state.nv.us']
 
     def __init__(self, session=None, chamber=None, **kwargs):
         self.session = session
         self.chamber = chamber
-        self.jurisdiction = Nevada()
-        super().__init__(**kwargs)
+        super().__init__(Nevada(), **kwargs)
 
-    def do_scrape(self, response):
+    def do_scrape(self):
         # TODO default active sessions
         slug = session_slugs[self.session]
         # fetch and parse subjects report to create bill:subjects mapping
@@ -271,15 +280,15 @@ class BillsSpider(BaseSpider):
             chamber = Chamber.UPPER if identifier.startswith(
                 "S") else Chamber.LOWER
             bill_stub = NVBillStub(
+                list(self.subject_mapping[identifier]),
                 bill_url,
                 link.xpath("text()").get(),
                 self.session,
                 chamber,
-                list(self.subject_mapping[identifier])
             )
 
             # Yield the stub
-            yield bill_stub
+            yield BillStubItem(bill_stub)
 
             # Yield a request for the bill details page
             bill_key = bill_url.split("/")[-2]
