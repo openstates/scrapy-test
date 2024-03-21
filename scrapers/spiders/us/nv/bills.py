@@ -209,6 +209,7 @@ class NVBillStub(BillStub):
 
 class BillsSpider(BaseSpider):
     name = "nv-bills"
+    jurisdiction = Nevada
     subject_mapping = defaultdict(set)
     start_urls = ['https://www.leg.state.nv.us']
 

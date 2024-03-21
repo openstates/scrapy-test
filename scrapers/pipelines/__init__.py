@@ -1,2 +1,3 @@
 from .drop_stubs import DropStubsPipeline
-from .save_objects import SaveObjectsPipeline
+from .save_local import SaveLocalPipeline
+from .save_google_cloud_storage import SaveGoogleCloudStoragePipeline

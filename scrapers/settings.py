@@ -64,7 +64,8 @@ DOWNLOADER_MIDDLEWARES = {
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
     "scrapers.pipelines.DropStubsPipeline": 300,
-    "scrapers.pipelines.SaveObjectsPipeline": 301,
+    "scrapers.pipelines.SaveLocalPipeline": 301,
+    # "scrapers.pipelines.SaveGoogleCloudStoragePipeline": 302,
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
@@ -95,4 +96,9 @@ FEED_EXPORT_ENCODING = "utf-8"
 
 FEED_EXPORTERS = {
     "json": "scrapers.exporters.OpenStatesJsonItemExporter"
+}
+
+SAVE_GOOGLE_CLOUD_STORAGE = {
+    "bucket": "plural-dev-lake-raw",
+    "prefix": "legislation",
 }
