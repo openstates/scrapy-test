@@ -1,7 +1,9 @@
 from .bills import (
-    BillStub,
     Chamber,
     BillItem,
+    BillStub,
+    BillStubItem,
+    bill_stub_schema,
     OrganizationItem,
     StateItem,
     VoteEventItem

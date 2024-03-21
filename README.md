@@ -6,35 +6,62 @@ Proof of Concept for using Scrapy to write and execute scrapers that obtain open
 
 * Install the necessary version of python using `pyenv`
 * If necessary, `pip install poetry`
-* `poetry install`
+* `poetry install`: You should now have the `scrapy` tool installed in your poetry environment.
+* Scrapy commands should now work via `poetry run scrapy`
 
-You should now have the `scrapy` tool installed in your poetry environment.
+### Run a scout scrape with local single JSON file output
 
-**Warning**: currently something is wrong with the project structure, trying to import from the `core` package from
-a scraper a couple layers deep in the `scrapers` package. I can only run this with a modification to
-PYTHONPATH (which PyCharm adds by default, running in PyCharm is fine). How to set PYTHONPATH if you want to just run
-this in a terminal:
-
-* Find the path to your Poetry environment folder: `poetry env info`
-* Set PYTHONPATH to include both the root folder of this repo and the `site-packages` folder of the poetry env:
-  `export PYTHONPATH='/home/jesse/repo/openstates/scrapy-test/scrapers:/home/jesse/.cache/pypoetry/virtualenvs/scrapy-test-vH1KNbGC-py3.9/lib/python3.9/site-packages:/home/jesse/repo/openstates/scrapy-test/'`
-    * You will need to change the paths in the command above to match those on your machine.
-
-### Run a scout scrape
-
-`python -m scrapy.cmdline crawl nv-bills -a session=2023Special35 -O nv-bills-scout.json -s "ITEM_PIPELINES={}"`
+`poetry run scrapy crawl nv-bills -a session=2023Special35 -O nv-bills-scout.json -s "ITEM_PIPELINES={}"`
 
 * This command disables the `DropStubsPipeline` (`ITEM_PIPELINES={}`), which by default drops stub entities
 * Results are output to `nv-bills-scout.json`
 
-### Run a full scrape
+### Run a scout scrape with local JSON file-per-bill-stub output
 
-`python -m scrapy.cmdline crawl nv-bills -a session=2023Special35 -O nv-bills.json -s "DOWNLOADER_MIDDLEWARES={}"`
+`poetry run scrapy crawl nv-bills -a session=2023Special35 -O nv-bills-scout.json -s "ITEM_PIPELINES={\"scrapers.pipelines.SaveLocalPipeline\": 300}"`
 
-* This command disables the `ScoutOnlyDownloaderMiddleware` (`DOWNLOADER_MIDDLEWARES={}`), which by default ignores
-  requests that are not marked `is_scout` in the `meta` property of the request.
-* Results are output to `nv-bills.json`
-* Please note that the scraper is not fully ported over yet, so there is still missing data.
+* Scrapers can define when to `yield BillStubItem(BillStub)` when the scraper has enough basic data about a bill
+* Requests must be provided the `meta` keyword parameter with a value of `{"is_scout": True}`, or else they will be
+  dropped by the `ScoutOnlyDownloaderMiddleware`
+    * In most cases this allows the scraper to skip many subsidiary requests, speeding up the scrape time
+* This command disables the `DropStubsPipeline` (excluded from `ITEM_PIPELINES`), which by default drops stub entities
+* Results are output to individual JSON files in a folder like `_data/{jurisdiction}/{date}/{runNumber}`
+
+### Run a full scrape with local JSON file-per-entity output
+
+`poetry run scrapy crawl nv-bills -a session=2023Special35 -s "DOWNLOADER_MIDDLEWARES={}" -s "ITEM_PIPELINES={\"scrapers.pipelines.DropStubsPipeline\": 300, \"scrapers.pipelines.SaveLocalPipeline\": 301}"`
+
+* This command enables the `SaveLocalPipeline` which saves JSON files to a local folder in the style of Open States
+  scrapers
+* This command disables the `ScoutOnlyDownloaderMiddleware` (`DOWNLOADER_MIDDLEWARES={}`), so all requests will be made.
+* However `DropStubsPipeline` is enabled, so stub bills will not be emitted
+* Results are output to individual JSON files in a folder like `_data/{jurisdiction}/{date}/{runNumber}`
+
+### Run a full scrape with Google Cloud Storage JSON file-per-entity output
+
+`poetry run scrapy crawl nv-bills -a session=2023Special35 -s "DOWNLOADER_MIDDLEWARES={}" -s "ITEM_PIPELINES={\"scrapers.pipelines.DropStubsPipeline\": 300, \"scrapers.pipelines.SaveGoogleCloudStoragePipeline\": 301}"`
+
+* This command enables the `SaveGoogleCloudStoragePipeline` which saves JSON files to a Google Cloud Storage location
+  in the style of Open States scrapers.
+* Scrapy settings (ie `settings.py`) must include the following to tell the pipeline which bucket and prefix to store
+  to:
+
+```python
+SAVE_GOOGLE_CLOUD_STORAGE = {
+    "bucket": "plural-dev-lake-raw",
+    "prefix": "legislation",
+}
+```
+
+* You must have local google credentials that
+  work ([see GCS python client docs](https://cloud.google.com/python/docs/reference/storage/latest))
+* This command disables the `ScoutOnlyDownloaderMiddleware` (`DOWNLOADER_MIDDLEWARES={}`), so all requests will be made.
+* However `DropStubsPipeline` is enabled, so stub bills will not be emitted
+* Results are output to individual JSON files to two locations in Cloud Storage:
+    * General jurisdiction
+      entities: `{prefix}/country:{country_code}/state:{jurisdiction_abbreviation}/{ISO 8601 date of scraper start}/`
+    * Legislative session entities (eg
+      bills): `{prefix}/country:{country_code}/state:{jurisdiction_abbreviation}/legislative_sessions/{session_identifier}/{ISO 8601 date of scraper start}/`
 
 ### Quickly examine individual items in scrapy output
 

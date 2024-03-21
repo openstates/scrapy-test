@@ -99,7 +99,6 @@ class BillsSpider(BaseSpider):
     name = "mo-bills"
     jurisdiction = Missouri
     subject_mapping = defaultdict(set)
-    start_urls = ['https://documents.house.mo.gov']
 
     def __init__(self, session=None, chamber=None, **kwargs):
         self.session = session
@@ -107,7 +106,7 @@ class BillsSpider(BaseSpider):
         self.jurisdiction = Missouri()
         super().__init__(**kwargs)
 
-    def do_scrape(self, response):
+    def do_scrape(self):
         # parse subjects
         self.parse_subjects(self.session)
 
