@@ -1,7 +1,7 @@
 import logging
 import re
 import time
-from typing import Any
+from typing import Union
 import dateutil.parser
 import pytz
 
@@ -218,6 +218,14 @@ class NVBillStub(BillStub):
         super(NVBillStub, self).__init__(*args)
 
 
+@dataclass
+class NVBillStubItem(BillStubItem):
+    subjects: list
+
+    def __init__(self, item: Union[BillStub, None] = None):
+        super().__init__(item)
+
+
 class BillsSpider(BaseSpider):
     name = "nv-bills"
     jurisdiction = Nevada
@@ -288,7 +296,7 @@ class BillsSpider(BaseSpider):
             )
 
             # Yield the stub
-            yield BillStubItem(bill_stub)
+            yield NVBillStubItem(bill_stub)
 
             # Yield a request for the bill details page
             bill_key = bill_url.split("/")[-2]

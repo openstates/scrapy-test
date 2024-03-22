@@ -63,6 +63,45 @@ SAVE_GOOGLE_CLOUD_STORAGE = {
     * Legislative session entities (eg
       bills): `{prefix}/country:{country_code}/state:{jurisdiction_abbreviation}/legislative_sessions/{session_identifier}/{ISO 8601 date of scraper start}/`
 
+### Run a full scrape AND save source files with Google Cloud Storage JSON file-per-entity output
+
+`poetry run scrapy crawl nv-bills -a session=2023Special35 -s "DOWNLOADER_MIDDLEWARES={}" -s "ITEM_PIPELINES={\"scrapers.pipelines.DropStubsPipeline\": 300, \"scrapy.pipelines.files.FilesPipeline\": 301, \"scrapers.pipelines.SaveGoogleCloudStoragePipeline\": 302}"`
+
+* All of the above ("Run a full scrape with Google Cloud Storage...") instructions/notes apply here!
+* In addition, you need to have the following in Scrapy `settings.py`:
+
+```python
+FILES_STORE = "gs://plural-dev-lake-raw/legislation/source-files/"
+GCS_PROJECT_ID = "civic-eagle-enview-dev"
+```
+
+* This uses the built-in Files pipeline to save original files to a GCS
+  location (`plural-dev-lake-raw/legislation/source-files/full` per setting above). Each file is named by generating
+  a SHA1 hash of the URL where the original file was found. So program code can use a snippet (see below) to take a
+  bill version file URL and identify the corresponding file in Google Cloud Storage.
+* At the time of writing, only `BillItem` implements file downloading, and only for bill version documents. However
+  additional documents can be easily added by simply adding URLs to the `file_urls` field on `BillItem` (or other
+  items).
+
+### Generate the hashcode representing a file from its original URL
+
+The Scrapy Files pipeline, by default, saves files using a filename generated from a hash of its original URL. This is
+cleaner than trying to normalize URLs to strings for a filesystem, but is a bit opaque. You can use this code snippet
+to identify a filename that corresponds to the source URL of the file:
+
+```bash
+jesse@greenbookwork:~/repo/openstates/scrapy-test$ poetry run python
+Python 3.9.15 (main, Jul 25 2023, 18:39:01)
+[GCC 11.3.0] on linux
+Type "help", "copyright", "credits" or "license" for more information.
+>>> import hashlib
+>>> from pathlib import Path
+>>> from scrapy.utils.python import to_bytes
+>>> url = "https://www.leg.state.nv.us/Session/35th2023Special/Bills/SR/SR1.pdf"
+>>> hashlib.sha1(to_bytes(url)).hexdigest() + Path(url).suffix
+'7952f76537995a8c615afcc3848d60b44a52c490.pdf'
+```
+
 ### Quickly examine individual items in scrapy output
 
 The CLI tool `jq` is very useful for quickly examining output, especially when you have a full scrape that is a long
