@@ -1,5 +1,4 @@
 import inspect
-import uuid
 from typing import Any, Union
 from dataclasses import dataclass
 from enum import Enum
@@ -47,16 +46,6 @@ class BillStub(BaseModel):
     def __str__(self):
         return self.identifier + " in " + self.legislative_session
 
-# @dataclass
-# class BillStub:
-#     source_url: str
-#     identifier: str
-#     session: str
-#     chamber: Chamber
-#
-#     def __init__(self):
-#         self._id = str(uuid.uuid1())
-
 
 class BaseItem:
     def __init__(self, item: Any):
@@ -72,7 +61,17 @@ class BaseItem:
 
 @dataclass
 class BillItem(BaseItem):
+    file_urls: list
+    files: list
+
     def __init__(self, item: Union[Bill, None] = None):
+        # handle files that can be downloaded
+        if type(item) is Bill:
+            self.file_urls = []
+            for version in item.versions:
+                for link in version["links"]:
+                    self.file_urls.append(link["url"])
+
         super().__init__(item)
 
     def __repr__(self) -> str:
@@ -81,6 +80,11 @@ class BillItem(BaseItem):
 
 @dataclass
 class BillStubItem(BaseItem):
+    source_url: str
+    identifier: str
+    legislative_session: str
+    chamber: Chamber
+
     def __init__(self, item: Union[BillStub, None] = None):
         super().__init__(item)
 

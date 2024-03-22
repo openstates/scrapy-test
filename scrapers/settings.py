@@ -102,3 +102,6 @@ SAVE_GOOGLE_CLOUD_STORAGE = {
     "bucket": "plural-dev-lake-raw",
     "prefix": "legislation",
 }
+
+FILES_STORE = "gs://plural-dev-lake-raw/legislation/source-files/"
+GCS_PROJECT_ID = "civic-eagle-enview-dev"
